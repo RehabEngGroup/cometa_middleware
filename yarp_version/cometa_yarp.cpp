@@ -44,6 +44,14 @@ class CometaReader
     bool newEpoch;
 
 public:
+    //only works if called before initialize
+    void setTriggerIn(bool on = true)
+    {
+        if (on)
+            trgMode = DAQ_TRG_IN_ACTIVE_HI;
+        else
+            trgMode = DAQ_TRG_OUT_ENABLE;
+    }
     int initialize(std::vector<int> enabledChans)
     {
         //step 1: create Wave device
@@ -269,6 +277,8 @@ public:
         for (int bt = 0; bt < chans->size(); ++bt)
             enabledChannels.push_back(chans->get(bt).asInt());
 
+        if (rf.check("trigIn"))
+            cometa.setTriggerIn(true);
         return cometa.initialize(enabledChannels) == 0;
     };
     bool updateModule(){
