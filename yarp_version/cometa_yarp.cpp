@@ -93,54 +93,35 @@ public:
 
         // step 3b: create online filters
 
-        //high pass 30 hz
+        //high pass 20 hz - Butterworth 2nd order, sampling rate 2000 Hz
         std::vector<std::complex<double> > bCoeffHP;
-        bCoeffHP.reserve(5);
-        bCoeffHP.push_back(0.8841);
-        bCoeffHP.push_back(-3.5364);
-        bCoeffHP.push_back(5.3046);
-        bCoeffHP.push_back(-3.5364);
-        bCoeffHP.push_back(0.8841);
-        std::vector<std::complex<double>> aCoeffHP;
-        aCoeffHP.reserve(5);
+        bCoeffHP.reserve(3);
+        bCoeffHP.push_back(0.9565);
+        bCoeffHP.push_back(-1.9131);
+        bCoeffHP.push_back(0.9565);
+
+        std::vector<std::complex<double> > aCoeffHP;
+        aCoeffHP.reserve(3);
         aCoeffHP.push_back(1.0000);
-        aCoeffHP.push_back(-3.7538);
-        aCoeffHP.push_back(5.2912);
-        aCoeffHP.push_back(-3.3189);
-        aCoeffHP.push_back(0.7816);
-        //low pass 450 hz
-        std::vector<std::complex<double> > bCoeffLP;
-        bCoeffLP.reserve(5);
-        bCoeffLP.push_back(0.0675);
-        bCoeffLP.push_back(0.2700);
-        bCoeffLP.push_back(0.4050);
-        bCoeffLP.push_back(0.2700);
-        bCoeffLP.push_back(0.0675);
-        std::vector<std::complex<double>> aCoeffLP;
-        aCoeffLP.reserve(5);
-        aCoeffLP.push_back(1.0000);
-        aCoeffLP.push_back(-0.3906);
-        aCoeffLP.push_back(0.5343);
-        aCoeffLP.push_back(-0.0842);
-        aCoeffLP.push_back(0.0207);
+        aCoeffHP.push_back(-1.9112);
+        aCoeffHP.push_back(0.9150);
+
 
         VOSL::Filter::Polynomial<double> bHP(bCoeffHP);
         VOSL::Filter::Polynomial<double> aHP(aCoeffHP);
-        VOSL::Filter::Polynomial<double> bLP(bCoeffLP);
-        VOSL::Filter::Polynomial<double> aLP(aCoeffLP);
+
 
         VOSL::Filter::TransferFunction<double> emgFilterTF =
-            VOSL::Filter::TransferFunction<double>(bLP, aLP, 2000) * VOSL::Filter::TransferFunction<double>(bHP, aHP, 2000);
+            VOSL::Filter::butter<double>(2, 300, 2000) * VOSL::Filter::TransferFunction<double>(bHP, aHP, 2000);
 
         for (int i = 0; i < emgInstalledChanNum; ++i)
         {
             filters.push_back(VOSL::Filter::Filter<double>(emgFilterTF));
         }
 
-        //low pass 8 hz
         for (int i = 0; i < emgInstalledChanNum; ++i)
         {
-            filtersLE.push_back(VOSL::Filter::Filter<double>(VOSL::Filter::TransferFunction<double>(VOSL::Filter::butter<double>(4, 8, 2000))));
+            filtersLE.push_back(VOSL::Filter::Filter<double>(VOSL::Filter::butter<double>(2, 8, 2000)));
         }
 
         // step 3c: initialize maximum envelope values
