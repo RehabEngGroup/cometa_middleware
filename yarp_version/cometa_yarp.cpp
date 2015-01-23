@@ -59,15 +59,19 @@ class CometaReader
     std::vector<double> maxEnvs;
     size_t sampleCounter;
     bool newEpoch;
+    bool initialized;
 
 public:
     //only works if called before initialize
-    void setTriggerIn(bool on = true)
+    bool setTriggerIn(bool on = true)
     {
+        if (initialized)
+            return false;
         if (on)
             trgMode = DAQ_TRG_IN_ACTIVE_HI;
         else
             trgMode = DAQ_TRG_OUT_ENABLE;
+        return true;
     }
     int initialize(std::vector<int> enabledChans)
     {
@@ -163,6 +167,7 @@ public:
             DeleteWaveDevice();
             return errcode;
         }
+        initialized = true;
         return 0;
     };
 
@@ -173,7 +178,7 @@ public:
         emgInstalledChanNum = 0;
         fswInstalledChanNum = 0;
         newEpoch = true;
-
+        initialized = false;
         sampleCounter = 0;
         //          if (initialize() != 0)
         //              exit(EXIT_FAILURE);
@@ -192,6 +197,10 @@ public:
         DeleteWaveDevice();
     };
 
+    void reset()
+    {
+        newEpoch = true;
+    }
 
     EnvelopeSample getSample()
     {
@@ -200,9 +209,16 @@ public:
             &firstSample, &lastSample);
         if (errcode == 0)
         {
-            size_t offset = 0;
+            if (trgMode != DAQ_TRG_OUT_ENABLE && newEpoch)
+            {
+                if (startFromTrg == 0)
+                    return EnvelopeSample();
+                else
+                    newEpoch = false;
+            }
+            size_t offset = firstSample;
             size_t curChan = 0;
-            while (offset < dataNum - emgEnabledChanNum)
+            while (offset <= lastSample - emgEnabledChanNum )
             {
                 for (curChan = 0; curChan < emgEnabledChanNum; curChan++)
                 {
