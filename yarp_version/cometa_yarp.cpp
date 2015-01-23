@@ -15,6 +15,22 @@
 #include <vosl/Filter/Filter.h>
 #include <vosl/Filter/Designer.h>
 
+
+const unsigned int COMETA_SAMPLING_RATE = 2000;
+
+struct EnvelopeSample
+{
+    double time;
+    std::vector<double> data;
+
+    EnvelopeSample() {};
+
+    EnvelopeSample(size_t size)
+    {
+        data.resize(size);
+    }
+};
+
 class CometaReader
 {
     //taken from WaveAPI example:
@@ -41,6 +57,7 @@ class CometaReader
     std::vector<VOSL::Filter::Filter<double> > filtersLE;
     // Maximum value (so far) for envelopes, used for normalization
     std::vector<double> maxEnvs;
+    size_t sampleCounter;
     bool newEpoch;
 
 public:
@@ -157,6 +174,7 @@ public:
         fswInstalledChanNum = 0;
         newEpoch = true;
 
+        sampleCounter = 0;
         //          if (initialize() != 0)
         //              exit(EXIT_FAILURE);
     };
@@ -175,10 +193,9 @@ public:
     };
 
 
-
-    std::vector<double> getSample()
+    EnvelopeSample getSample()
     {
-        std::vector<double> currentSample(emgEnabledChanNum);
+        EnvelopeSample currentSample(emgEnabledChanNum);
         errcode = device->transferData(&dataBuff, &dataNum, &isAcqRunning, &startFromTrg, &stopFromTrg,
             &firstSample, &lastSample);
         if (errcode == 0)
@@ -192,13 +209,15 @@ public:
                     double sampleValue = filtersLE.at(curChan).filter(abs(filters.at(curChan).filter(dataBuff[offset + curChan])));
                     if (sampleValue>maxEnvs.at(curChan))
                         maxEnvs.at(curChan) = sampleValue;
-                    currentSample.at(curChan) = sampleValue / maxEnvs.at(curChan);
+                    currentSample.data.at(curChan) = sampleValue / maxEnvs.at(curChan);
                 }
                 offset += emgEnabledChanNum;
+                sampleCounter++;
             }
+            currentSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
             return currentSample;
         }
-        return std::vector<double>();
+        return EnvelopeSample();
     };
 };
 
@@ -264,14 +283,15 @@ public:
         return cometa.initialize(enabledChannels) == 0;
     };
     bool updateModule(){
-        std::vector<double> sampleVector = cometa.getSample();
+        EnvelopeSample sample = cometa.getSample();
+        if (sample.data.size() < 0)
+            return true;
         ceinms_msgs_EmgData& sampleOnPort = emgPort.prepare();
-        double time = yarp::os::Time::now();
         sampleOnPort.header.seq = seq++;
-        sampleOnPort.header.stamp.sec = time;
-        sampleOnPort.header.stamp.nsec = (time - sampleOnPort.header.stamp.sec) * 1000000000;
+        sampleOnPort.header.stamp.sec = sample.time;
+        sampleOnPort.header.stamp.nsec = (sample.time - sampleOnPort.header.stamp.sec) * 1000000000;
         sampleOnPort.name = emgChannelNames;
-        sampleOnPort.envelope = sampleVector;
+        sampleOnPort.envelope = sample.data;
         emgPort.write();
         return true;
     };
