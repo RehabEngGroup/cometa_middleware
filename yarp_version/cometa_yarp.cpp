@@ -206,7 +206,8 @@ public:
 class CometaReaderModule : public yarp::os::RFModule
 {
 public:
-    CometaReaderModule() : node("/cometaReader"){};
+    CometaReaderModule() : node("/cometaReader"), seq(0) { };
+
     bool configure(yarp::os::ResourceFinder& rf)
     {
         emgPort.topic("/emgData");
@@ -266,6 +267,7 @@ public:
         std::vector<double> sampleVector = cometa.getSample();
         ceinms_msgs_EmgData& sampleOnPort = emgPort.prepare();
         double time = yarp::os::Time::now();
+        sampleOnPort.header.seq = seq++;
         sampleOnPort.header.stamp.sec = time;
         sampleOnPort.header.stamp.nsec = (time - sampleOnPort.header.stamp.sec) * 1000000000;
         sampleOnPort.name = emgChannelNames;
@@ -292,6 +294,7 @@ private:
     yarp::os::Publisher<ceinms_msgs_EmgData> emgPort;
     std::vector<std::string> emgChannelNames;
     yarp::os::Node node;
+    int seq;
 };
 
 
