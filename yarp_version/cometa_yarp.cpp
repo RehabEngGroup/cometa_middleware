@@ -60,6 +60,7 @@ class CometaReader
     size_t sampleCounter;
     bool newEpoch;
     bool initialized;
+    bool selfNormalize;
 
 public:
     //only works if called before initialize
@@ -73,6 +74,15 @@ public:
             trgMode = DAQ_TRG_OUT_ENABLE;
         return true;
     }
+
+    bool setSelfNormalize(bool on = true)
+    {
+        if (initialized)
+            return false;
+        selfNormalize = on;
+        return true;
+    }
+
     int initialize(std::vector<int> enabledChans)
     {
         //step 1: create Wave device
@@ -148,7 +158,10 @@ public:
         // step 3c: initialize maximum envelope values
         for (int i = 0; i < emgInstalledChanNum; ++i)
         {
-            maxEnvs.push_back(-std::numeric_limits<double>::infinity());
+            if (selfNormalize)
+                maxEnvs.push_back(-std::numeric_limits<double>::infinity());
+            else
+                maxEnvs.push_back(1.0);
         }
 
 
@@ -180,6 +193,7 @@ public:
         newEpoch = true;
         initialized = false;
         sampleCounter = 0;
+        selfNormalize = true;
         //          if (initialize() != 0)
         //              exit(EXIT_FAILURE);
     };
@@ -223,7 +237,7 @@ public:
                 for (curChan = 0; curChan < emgEnabledChanNum; curChan++)
                 {
                     double sampleValue = filtersLE.at(curChan).filter(abs(filters.at(curChan).filter(dataBuff[offset + curChan])));
-                    if (sampleValue>maxEnvs.at(curChan))
+                    if (selfNormalize && sampleValue>maxEnvs.at(curChan))
                         maxEnvs.at(curChan) = sampleValue;
                     currentSample.data.at(curChan) = sampleValue / maxEnvs.at(curChan);
                 }
@@ -296,6 +310,8 @@ public:
 
         if (rf.check("trigIn"))
             cometa.setTriggerIn(true);
+        if (rf.check("selfNormalize"))
+            cometa.setSelfNormalize(rf.find("selfNormalize").asBool());
         return cometa.initialize(enabledChannels) == 0;
     };
     bool updateModule(){
