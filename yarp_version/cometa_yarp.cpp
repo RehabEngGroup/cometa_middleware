@@ -400,7 +400,7 @@ public:
     };
     double getPeriod()
     {
-        return 0.05;
+        return 0.001;
     };
 private:
     CometaReader cometa;
