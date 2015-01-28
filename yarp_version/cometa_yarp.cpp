@@ -50,7 +50,8 @@ class CometaReader
     int errcode;
     int i, t;
 
-    int emgEnabledChanNum;
+    unsigned int emgEnabledChanNum;
+    std::vector<int> channelsMap;
     // Bandpass filter for raw EMG signal
     std::vector<VOSL::Filter::Filter<double> > filters;
     // Lowpass filter for rectified EMG signal
@@ -85,27 +86,46 @@ public:
 
     int initialize(std::vector<int> enabledChans)
     {
-        //step 1: create Wave device
-        device = CreateWaveDevice();
         if (device == NULL)
         {
-            printf("\nError creating device");
+            std::cout << "Cannot access the device!" << std::endl;
+            return -1;
+        }
+        // step 3: configure acquisition parameters
+        emgEnabledChanNum = enabledChans.size();
+        if (emgEnabledChanNum == 0)
+        {
+            emgEnabledChanNum = emgInstalledChanNum;
+            //enable all the Emg channels (1= enabled, 0= disabled)
+            for (i = 0; i < emgInstalledChanNum; i++)
+            {
+                emgChanEnableVect[i] = 1;
+                channelsMap.push_back(i);
+            }
+        }
+        else
+        {
+            channelsMap.clear();
+            for (i = 0; i < emgInstalledChanNum; i++)
+            {
+                std::vector<int>::iterator foundChan = std::find(enabledChans.begin(), enabledChans.end(), i+1); // ELECTRODE IDs START WITH 1 !
+                if (foundChan != enabledChans.end())
+                {
+                    emgChanEnableVect[i] = 1;
+                    channelsMap.push_back(foundChan-enabledChans.begin());
+                }
+                else
+                    emgChanEnableVect[i] = 0;
+            }
+        }
+
+
+        if (channelsMap.size() != emgEnabledChanNum)
+        {
+            std::cout << "Something went wrong in the configuration of the channels mapping" << std::endl;
             return -1;
         }
 
-        // step 2: get the Emg and FootSw installed channels number
-        if ((errcode = device->getInstalledChan(&emgInstalledChanNum, &fswInstalledChanNum)) != 0)
-        {
-            printf("\nError executing getInstalledChan() method - Error code= %d\n", errcode);
-            DeleteWaveDevice();
-            return errcode;
-        }
-
-        // step 3: configure acquisition parameters
-        emgEnabledChanNum = enabledChans.size();
-        //enable all the Emg channels (1= enabled, 0= disabled) 
-        for (i = 0; i < emgInstalledChanNum; i++)
-            (std::find(enabledChans.begin(), enabledChans.end(), i) != enabledChans.end()) ? emgChanEnableVect[i] = 1 : emgChanEnableVect[i] = 0;
 
         //disable all the FootSw channels (1= enabled, 0= disabled) 
         for (i = 0; i < fswInstalledChanNum; i++)
@@ -145,18 +165,18 @@ public:
         VOSL::Filter::TransferFunction<double> emgFilterTF =
             VOSL::Filter::butter<double>(2, 300, 2000) * VOSL::Filter::TransferFunction<double>(bHP, aHP, 2000);
 
-        for (int i = 0; i < emgInstalledChanNum; ++i)
+        for (int i = 0; i < emgEnabledChanNum; ++i)
         {
             filters.push_back(VOSL::Filter::Filter<double>(emgFilterTF));
         }
 
-        for (int i = 0; i < emgInstalledChanNum; ++i)
+        for (int i = 0; i < emgEnabledChanNum; ++i)
         {
             filtersLE.push_back(VOSL::Filter::Filter<double>(VOSL::Filter::butter<double>(2, 8, 2000)));
         }
 
         // step 3c: initialize maximum envelope values
-        for (int i = 0; i < emgInstalledChanNum; ++i)
+        for (int i = 0; i < emgEnabledChanNum; ++i)
         {
             if (selfNormalize)
                 maxEnvs.push_back(-std::numeric_limits<double>::infinity());
@@ -188,14 +208,30 @@ public:
         //initialize variables
         fswProtocolType = FSW_PROT_QUARTER_FOOT;
         trgMode = DAQ_TRG_OUT_ENABLE;
-        emgInstalledChanNum = 0;
-        fswInstalledChanNum = 0;
+        emgInstalledChanNum = -1;
+        fswInstalledChanNum = -1;
         newEpoch = true;
         initialized = false;
         sampleCounter = 0;
         selfNormalize = true;
-        //          if (initialize() != 0)
-        //              exit(EXIT_FAILURE);
+        device = NULL;
+
+        //step 1: create Wave device
+        device = CreateWaveDevice();
+        if (device == NULL)
+        {
+            printf("\nError creating device");
+        }
+        else
+        {
+            // step 2: get the Emg and FootSw installed channels number
+            if ((errcode = device->getInstalledChan(&emgInstalledChanNum, &fswInstalledChanNum)) != 0)
+            {
+                printf("\nError executing getInstalledChan() method - Error code= %d\n", errcode);
+                DeleteWaveDevice();
+                device = NULL;
+            }
+        }
     };
 
 
@@ -216,9 +252,14 @@ public:
         newEpoch = true;
     }
 
+    int getInstalledChanNum()
+    {
+        return emgInstalledChanNum;
+    }
+
     EnvelopeSample getSample()
     {
-        EnvelopeSample currentSample(emgEnabledChanNum);
+        std::vector<double> currentSample(emgEnabledChanNum);
         errcode = device->transferData(&dataBuff, &dataNum, &isAcqRunning, &startFromTrg, &stopFromTrg,
             &firstSample, &lastSample);
         if (errcode == 0)
@@ -239,13 +280,16 @@ public:
                     double sampleValue = filtersLE.at(curChan).filter(abs(filters.at(curChan).filter(dataBuff[offset + curChan])));
                     if (selfNormalize && sampleValue>maxEnvs.at(curChan))
                         maxEnvs.at(curChan) = sampleValue;
-                    currentSample.data.at(curChan) = sampleValue / maxEnvs.at(curChan);
+                    currentSample.at(curChan) = sampleValue;
                 }
                 offset += emgEnabledChanNum;
                 sampleCounter++;
             }
-            currentSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
-            return currentSample;
+            EnvelopeSample normalizedReorderedSample(emgEnabledChanNum);
+            normalizedReorderedSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
+            for (size_t i = 0; i < channelsMap.size(); ++i)
+                normalizedReorderedSample.data.at(i) = currentSample.at(channelsMap[i]) / maxEnvs.at(channelsMap[i]);
+            return normalizedReorderedSample;
         }
         return EnvelopeSample();
     };
@@ -261,6 +305,11 @@ public:
     {
         emgPort.topic("/emgData");
 
+        int installedChans = cometa.getInstalledChanNum();
+        std::vector<int> enabledChannels;
+        if (installedChans < 0)
+            return false;
+
         //query parameter server
         yarp::os::Bottle query, reply;
         query.addString("getParam");
@@ -273,49 +322,55 @@ public:
         bool ok = yarp::os::Network::write(yarp::os::Contact::byName("/ros"), query, reply, style);
         if (!ok)
         {
-            yWarning("Could not connect to ROS parameter server to retrieve list of emgNames - chans");
-            return false;
+            yWarning(" Could not connect to ROS parameter server to retrieve list of emgNames - chans");
+            defaultEmgNames(installedChans);
         }
-        if (reply.get(0).asInt() != 1)
+        else
         {
-            yWarning("ROS parameter server did not successfully provide list of emgNames ");
-            return false;
+            if (reply.get(0).asInt() != 1)
+            {
+                yWarning(" ROS parameter server did not successfully provide list of emgNames - chans");
+                defaultEmgNames(installedChans);
+            }
+            else
+            {
+                emgChannelNames.clear();
+                yarp::os::Bottle* names = reply.get(2).asList();
+                if (names->get(0).asString() != "dict")
+                {
+                    yWarning(" Did not receive a dict!");
+                    defaultEmgNames(installedChans);
+                }
+                else
+                    for (int bt = 1; bt < names->size(); ++bt)
+                    {
+                        emgChannelNames.push_back(names->get(bt).asList()->get(0).asString());
+                        enabledChannels.push_back(names->get(bt).asList()->get(1).asInt()); //TODO check it is consistent with max num emg channels
+                    }
+            }
         }
-        emgChannelNames.clear();
-        yarp::os::Bottle* names = reply.get(2).asList();
-        for (int bt = 0; bt < names->size(); ++bt)
-            emgChannelNames.push_back(names->get(bt).asString());
-
-        // get channel numbers
-        query.clear();
-        query.addString("getParam");
-        query.addString("/cometaReader");
-        query.addString("emgChans");
-        reply.clear();
-        ok = yarp::os::Network::write(yarp::os::Contact::byName("/ros"), query, reply, style);
-        if (!ok)
-        {
-            yWarning("Could not connect to ROS parameter server to retrieve list of emgNames - chans");
-            return false;
-        }
-        if (reply.get(0).asInt() != 1)
-        {
-            yWarning("ROS parameter server did not successfully provide list of emgNames ");
-            return false;
-        }
-        std::vector<int> enabledChannels;
-        yarp::os::Bottle* chans = reply.get(2).asList();
-        for (int bt = 0; bt < chans->size(); ++bt)
-            enabledChannels.push_back(chans->get(bt).asInt());
 
         if (rf.check("trigIn"))
             cometa.setTriggerIn(true);
         if (rf.check("selfNormalize"))
             cometa.setSelfNormalize(rf.find("selfNormalize").asBool());
+
         return cometa.initialize(enabledChannels) == 0;
     };
+
+    void defaultEmgNames(size_t nChannels)
+    {
+        emgChannelNames.clear();
+        for (size_t n = 0; n < nChannels; ++n)
+        {
+            std::string chanName = "Emg Chan "  + std::to_string(n);
+            emgChannelNames.push_back(chanName);
+        }
+    }
+
     bool updateModule(){
         EnvelopeSample sample = cometa.getSample();
+
         if (sample.data.size() < 0)
             return true;
         ceinms_msgs_EmgData& sampleOnPort = emgPort.prepare();
@@ -323,6 +378,12 @@ public:
         sampleOnPort.header.stamp.sec = sample.time;
         sampleOnPort.header.stamp.nsec = (sample.time - sampleOnPort.header.stamp.sec) * 1000000000;
         sampleOnPort.name = emgChannelNames;
+        if (emgChannelNames.size() != sample.data.size()) //not sure if this is needed...
+        {
+            yError("Something went wrong while reading data from the Cometa, I got a different number of signals than expected");
+            return false;
+        }
+
         sampleOnPort.envelope = sample.data;
         emgPort.write();
         return true;
