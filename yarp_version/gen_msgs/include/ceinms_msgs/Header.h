@@ -1,6 +1,5 @@
 // This is an automatically generated file.
 // Generated from this Header.msg definition:
-//   [roslib/Header]
 //   uint32 seq
 //   time stamp
 //   string frame_id
@@ -14,13 +13,16 @@
 #include <vector>
 #include <yarp/os/Wire.h>
 #include <yarp/os/idl/WireTypes.h>
-#include <TickTime.h>
+#include "TickTime.h"
 
 class Header : public yarp::os::idl::WirePortable {
 public:
   yarp::os::NetUint32 seq;
   TickTime stamp;
   std::string frame_id;
+
+  Header() {
+  }
 
   bool readBare(yarp::os::ConnectionReader& connection) {
     // *** seq ***
@@ -99,9 +101,19 @@ public:
   typedef yarp::os::idl::BareStyle<Header> rosStyle;
   typedef yarp::os::idl::BottleStyle<Header> bottleStyle;
 
+  // Give source text for class, ROS will need this
+  yarp::os::ConstString getTypeText() {
+    return "uint32 seq\n\
+time stamp\n\
+string frame_id";
+  }
+
   // Name the class, ROS will need this
   yarp::os::Type getType() {
-    return yarp::os::Type::byName("Header","Header").addProperty("md5sum",yarp::os::Value("*"));
+    yarp::os::Type typ = yarp::os::Type::byName("Header","Header");
+    typ.addProperty("md5sum",yarp::os::Value("2176decaecbce78abc3b96ef049fabed"));
+    typ.addProperty("message_definition",yarp::os::Value(getTypeText()));
+    return typ;
   }
 };
 

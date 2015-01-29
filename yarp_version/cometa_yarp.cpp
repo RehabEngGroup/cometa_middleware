@@ -11,7 +11,7 @@
 #include <yarp/os/Publisher.h>
 #include <yarp/os/RFModule.h>
 
-#include "ceinms_msgs_EmgData.h"
+#include "ceinms_msgs/EmgData.h"
 #include <vosl/Filter/Filter.h>
 #include <vosl/Filter/Designer.h>
 
@@ -373,7 +373,7 @@ public:
 
         if (sample.data.size() < 0)
             return true;
-        ceinms_msgs_EmgData& sampleOnPort = emgPort.prepare();
+        ceinms_msgs::EmgData& sampleOnPort = emgPort.prepare();
         sampleOnPort.header.seq = seq++;
         sampleOnPort.header.stamp.sec = sample.time;
         sampleOnPort.header.stamp.nsec = (sample.time - sampleOnPort.header.stamp.sec) * 1000000000;
@@ -404,7 +404,7 @@ public:
     };
 private:
     CometaReader cometa;
-    yarp::os::Publisher<ceinms_msgs_EmgData> emgPort;
+    yarp::os::Publisher<ceinms_msgs::EmgData> emgPort;
     std::vector<std::string> emgChannelNames;
     yarp::os::Node node;
     int seq;

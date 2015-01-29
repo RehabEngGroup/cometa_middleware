@@ -15,8 +15,8 @@
 #include <vector>
 #include <yarp/os/Wire.h>
 #include <yarp/os/idl/WireTypes.h>
-#include <TickTime.h>
-#include <Header.h>
+#include "TickTime.h"
+#include "Header.h"
 
 class ceinms_msgs_EmgData : public yarp::os::idl::WirePortable {
 public:
@@ -24,6 +24,9 @@ public:
   std::vector<std::string> name;
   std::vector<yarp::os::NetFloat64> envelope;
   std::vector<yarp::os::NetFloat64> raw;
+
+  ceinms_msgs_EmgData() {
+  }
 
   bool readBare(yarp::os::ConnectionReader& connection) {
     // *** header ***
@@ -34,7 +37,7 @@ public:
     name.resize(len);
     for (int i=0; i<len; i++) {
       int len2 = connection.expectInt();
-      name.resize(len2);
+      name[i].resize(len2);
       if (!connection.expectBlock((char*)name[i].c_str(),len2)) return false;
     }
 
@@ -64,7 +67,7 @@ public:
     name.resize(len);
     for (int i=0; i<len; i++) {
       int len2 = connection.expectInt();
-      name.resize(len2);
+      name[i].resize(len2);
       if (!connection.expectBlock((char*)name[i].c_str(),len2)) return false;
     }
 
@@ -154,9 +157,25 @@ public:
   typedef yarp::os::idl::BareStyle<ceinms_msgs_EmgData> rosStyle;
   typedef yarp::os::idl::BottleStyle<ceinms_msgs_EmgData> bottleStyle;
 
+  // Give source text for class, ROS will need this
+  yarp::os::ConstString getTypeText() {
+    return "Header header\n\
+\n\
+string[] name\n\
+float64[] envelope\n\
+float64[] raw\n================================================================================\n\
+MSG: std_msgs/Header\n\
+uint32 seq\n\
+time stamp\n\
+string frame_id";
+  }
+
   // Name the class, ROS will need this
   yarp::os::Type getType() {
-    return yarp::os::Type::byName("ceinms_msgs/EmgData","ceinms_msgs/EmgData").addProperty("md5sum",yarp::os::Value("90e54c5a4cfd44150ec0b260907dae98"));
+    yarp::os::Type typ = yarp::os::Type::byName("ceinms_msgs/EmgData","ceinms_msgs/EmgData");
+    typ.addProperty("md5sum",yarp::os::Value("90e54c5a4cfd44150ec0b260907dae98"));
+    typ.addProperty("message_definition",yarp::os::Value(getTypeText()));
+    return typ;
   }
 };
 
