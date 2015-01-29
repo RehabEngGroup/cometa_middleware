@@ -12,6 +12,8 @@
 #include <yarp/os/RFModule.h>
 
 #include "ceinms_msgs/EmgData.h"
+#include "ceinms_msgs/ResetTimer.h"
+#include "ceinms_msgs/ResetTimerReply.h"
 #include <vosl/Filter/Filter.h>
 #include <vosl/Filter/Designer.h>
 
@@ -247,9 +249,12 @@ public:
         DeleteWaveDevice();
     };
 
-    void reset()
+    bool reset()
     {
+        bool realReset = sampleCounter!=0;
         newEpoch = true;
+        sampleCounter = 0;
+        return realReset;
     }
 
     int getInstalledChanNum()
@@ -295,8 +300,7 @@ public:
     };
 };
 
-
-class CometaReaderModule : public yarp::os::RFModule
+class CometaReaderModule : public yarp::os::RFModule, yarp::os::PortReader
 {
 public:
     CometaReaderModule() : node("/cometaReader"), seq(0) { };
@@ -304,6 +308,11 @@ public:
     bool configure(yarp::os::ResourceFinder& rf)
     {
         emgPort.topic("/emgData");
+
+        ceinms_msgs::ResetTimer resetTimer;
+        resetPort.promiseType(resetTimer.getType());
+        resetPort.open("/resetCeinms@/cometaReader");
+        resetPort.setReader(*this);
 
         int installedChans = cometa.getInstalledChanNum();
         std::vector<int> enabledChannels;
@@ -402,9 +411,23 @@ public:
     {
         return 0.001;
     };
+
+    bool read(yarp::os::ConnectionReader& connection)
+    {
+        ceinms_msgs::ResetTimer resetTimer;
+        ceinms_msgs::ResetTimerReply resetReply;
+        if (resetTimer.read(connection))
+        {
+            seq = 0;
+            resetReply.ok = cometa.reset();
+            return resetReply.write(*connection.getWriter());
+        }
+        else return false;
+    }
 private:
     CometaReader cometa;
     yarp::os::Publisher<ceinms_msgs::EmgData> emgPort;
+    yarp::os::RpcServer resetPort;
     std::vector<std::string> emgChannelNames;
     yarp::os::Node node;
     int seq;
