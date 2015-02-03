@@ -64,6 +64,7 @@ class CometaReader
     bool newEpoch;
     bool initialized;
     bool selfNormalize;
+    bool recording;
 
 public:
     //only works if called before initialize
@@ -72,9 +73,15 @@ public:
         if (initialized)
             return false;
         if (on)
+        {
             trgMode = DAQ_TRG_IN_ACTIVE_HI;
+            recording = false;
+        }
         else
+        {
             trgMode = DAQ_TRG_OUT_ENABLE;
+            recording = true;
+        }
         return true;
     }
 
@@ -114,6 +121,7 @@ public:
                 if (foundChan != enabledChans.end())
                 {
                     emgChanEnableVect[i] = 1;
+                    //std::cout << "enabling channel " << i << " as " << foundChan - enabledChans.begin() << std::endl;
                     channelsMap.push_back(foundChan-enabledChans.begin());
                 }
                 else
@@ -217,6 +225,7 @@ public:
         sampleCounter = 0;
         selfNormalize = true;
         device = NULL;
+        recording = true;
 
         //step 1: create Wave device
         device = CreateWaveDevice();
@@ -240,10 +249,10 @@ public:
     ~CometaReader(){
         // step 7: stop the data acquisition process
         errcode = device->stop();
-        //            if((errcode= device->stop()) != 0)
-        //            {
-        //                printf("\nError executing stop() method - Error code= %d\n", errcode);
-        //            }
+        if((errcode= device->stop()) != 0)
+        {
+            printf("\nError executing stop() method - Error code= %d\n", errcode);
+        }
 
         // step 8: destroy the device
         DeleteWaveDevice();
@@ -251,10 +260,29 @@ public:
 
     bool reset()
     {
-        bool realReset = sampleCounter!=0;
         newEpoch = true;
         sampleCounter = 0;
-        return realReset;
+        //stop
+        errcode = device->stop();
+        if ((errcode = device->stop()) != 0)
+        {
+            printf("\nError executing stop() method - Error code= %d\n", errcode);
+         //   return false;
+        }
+        // reactivate
+        if ((errcode = device->activate()) != 0)
+        {
+            printf("\nError executing activate() method - Error code= %d\n", errcode);
+            return false;
+        }
+
+        // restart data acquisition
+        if ((errcode = device->run()) != 0)
+        {
+            printf("\nError executing run() method - Error code= %d\n", errcode);
+            return false;
+        }
+        return true;
     }
 
     int getInstalledChanNum()
@@ -267,15 +295,32 @@ public:
         std::vector<double> currentSample(emgEnabledChanNum);
         errcode = device->transferData(&dataBuff, &dataNum, &isAcqRunning, &startFromTrg, &stopFromTrg,
             &firstSample, &lastSample);
+        bool stopAcquisition = false;
         if (errcode == 0)
         {
-            if (trgMode != DAQ_TRG_OUT_ENABLE && newEpoch)
+            if (trgMode != DAQ_TRG_OUT_ENABLE)
             {
-                if (startFromTrg == 0)
-                    return EnvelopeSample();
-                else
-                    newEpoch = false;
+                if (newEpoch)
+                {
+                    if (startFromTrg == 0)
+                        return EnvelopeSample();
+                    else
+                    {
+                        recording = true;
+                        newEpoch = false;
+                    }
+                }
+                if (stopFromTrg != 0)
+                {
+                    stopAcquisition = true;
+                }
             }
+            if (recording == false)
+            {
+                return EnvelopeSample();
+            }
+            if (stopAcquisition)
+                recording = false;
             size_t offset = firstSample;
             size_t curChan = 0;
             while (offset <= lastSample - emgEnabledChanNum )
@@ -360,7 +405,11 @@ public:
         }
 
         if (rf.check("trigIn"))
-            cometa.setTriggerIn(true);
+        if (!cometa.setTriggerIn(true))
+        {
+            yWarning(" Trigger was not set correctly!");
+            return false;
+        }
         if (rf.check("selfNormalize"))
             cometa.setSelfNormalize(rf.find("selfNormalize").asBool());
 
@@ -379,8 +428,7 @@ public:
 
     bool updateModule(){
         EnvelopeSample sample = cometa.getSample();
-
-        if (sample.data.size() < 0)
+        if (sample.data.size() <= 0)
             return true;
         ceinms_msgs::EmgData& sampleOnPort = emgPort.prepare();
         sampleOnPort.header.seq = seq++;
@@ -420,6 +468,8 @@ public:
         {
             seq = 0;
             resetReply.ok = cometa.reset();
+            if (!resetReply.ok)      // TODO check if
+                this->stopModule();  // this is correct
             return resetReply.write(*connection.getWriter());
         }
         else return false;
