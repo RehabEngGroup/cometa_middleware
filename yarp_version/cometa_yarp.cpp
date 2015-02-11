@@ -326,7 +326,7 @@ public:
         return emgInstalledChanNum;
     }
 
-    EnvelopeSample getSample()
+    std::vector<EnvelopeSample> getSamples()
     {
         std::vector<double> currentSample(emgEnabledChanNum);
         errcode = device->transferData(&dataBuff, &dataNum, &isAcqRunning, &startFromTrg, &stopFromTrg,
@@ -339,7 +339,7 @@ public:
                 if (newEpoch)
                 {
                     if (startFromTrg == 0)
-                        return EnvelopeSample();
+                        return std::vector<EnvelopeSample>();
                     else
                     {
                         recording = true;
@@ -353,12 +353,14 @@ public:
             }
             if (recording == false)
             {
-                return EnvelopeSample();
+                return std::vector<EnvelopeSample>();
             }
             if (stopAcquisition)
                 recording = false;
             size_t offset = firstSample;
             size_t curChan = 0;
+            size_t startingSampleCounter = sampleCounter;
+            std::vector<EnvelopeSample> normalizedReorderedSampleVector;
             while (offset <= lastSample - emgEnabledChanNum )
             {
                 outRaw << (double)sampleCounter / double(COMETA_SAMPLING_RATE) << "\t";
@@ -373,16 +375,19 @@ public:
                 }
                 offset += emgEnabledChanNum;
                 sampleCounter++;
-
+                if ((sampleCounter - startingSampleCounter) % 10 == 0)
+                {
+                    EnvelopeSample normalizedReorderedSample(emgEnabledChanNum);
+                    normalizedReorderedSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
+                    for (size_t i = 0; i < channelsMap.size(); ++i)
+                        normalizedReorderedSample.data.at(channelsMap[i]) = currentSample.at(i) / maxEnvs.at(i);
+                    normalizedReorderedSampleVector.push_back(normalizedReorderedSample);
+                }
                 outRaw << std::endl;
             }
-            EnvelopeSample normalizedReorderedSample(emgEnabledChanNum);
-            normalizedReorderedSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
-            for (size_t i = 0; i < channelsMap.size(); ++i)
-                normalizedReorderedSample.data.at(channelsMap[i]) = currentSample.at(i) / maxEnvs.at(i);
-            return normalizedReorderedSample;
+            return normalizedReorderedSampleVector;
         }
-        return EnvelopeSample();
+        return std::vector<EnvelopeSample>();
     };
 };
 
@@ -486,22 +491,26 @@ public:
     }
 
     bool updateModule(){
-        EnvelopeSample sample = cometa.getSample();
-        if (sample.data.size() <= 0)
+        std::vector<EnvelopeSample> samples = cometa.getSamples();
+        if (samples.size() < 1 || samples.at(0).data.size() <= 0)
             return true;
-        ceinms_msgs::EmgData& sampleOnPort = emgPort.prepare();
-        sampleOnPort.header.seq = seq++;
-        sampleOnPort.header.stamp.sec = sample.time;
-        sampleOnPort.header.stamp.nsec = (sample.time - sampleOnPort.header.stamp.sec) * 1000000000;
-        sampleOnPort.name = emgChannelNames;
-        if (emgChannelNames.size() != sample.data.size()) //not sure if this is needed...
+        for (auto sample : samples)
         {
-            yError("Something went wrong while reading data from the Cometa, I got a different number of signals than expected");
-            return false;
-        }
+            ceinms_msgs::EmgData& sampleOnPort = emgPort.prepare();
+            sampleOnPort.header.seq = seq++;
+            sampleOnPort.header.stamp.sec = sample.time;
+            sampleOnPort.header.stamp.nsec = (sample.time - sampleOnPort.header.stamp.sec) * 1000000000;
+            sampleOnPort.name = emgChannelNames;
+            if (emgChannelNames.size() != sample.data.size()) //not sure if this is needed...
+            {
+                yError("Something went wrong while reading data from the Cometa, I got a different number of signals than expected");
+                return false;
+            }
 
-        sampleOnPort.envelope = sample.data;
-        emgPort.write();
+            sampleOnPort.envelope = sample.data;
+            emgPort.write();
+            emgPort.waitForWrite(); //might just be write(true) ?
+        }
         return true;
     };
     bool interruptModule()
