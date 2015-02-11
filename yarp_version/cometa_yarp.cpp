@@ -99,7 +99,7 @@ public:
         return true;
     }
 
-    int initialize(std::vector<int> enabledChans)
+    int initialize(std::vector<int> enabledChans, std::vector<double> maxEnvelopeValues=std::vector<double>())
     {
         if (device == NULL)
         {
@@ -129,6 +129,8 @@ public:
                     emgChanEnableVect[i] = 1;
                     //std::cout << "enabling channel " << i << " as " << foundChan - enabledChans.begin() << std::endl;
                     channelsMap.push_back(foundChan-enabledChans.begin());
+                    if (!maxEnvelopeValues.empty())
+                        maxEnvs.push_back(maxEnvelopeValues.at(foundChan - enabledChans.begin()));
                 }
                 else
                     emgChanEnableVect[i] = 0;
@@ -204,6 +206,7 @@ public:
             if (selfNormalize)
                 maxEnvs.push_back(-std::numeric_limits<double>::infinity());
             else
+            if (maxEnvelopeValues.empty())
                 maxEnvs.push_back(1.0);
         }
 
@@ -376,7 +379,7 @@ public:
             EnvelopeSample normalizedReorderedSample(emgEnabledChanNum);
             normalizedReorderedSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
             for (size_t i = 0; i < channelsMap.size(); ++i)
-                normalizedReorderedSample.data.at(i) = currentSample.at(channelsMap[i]) / maxEnvs.at(channelsMap[i]);
+                normalizedReorderedSample.data.at(channelsMap[i]) = currentSample.at(i) / maxEnvs.at(i);
             return normalizedReorderedSample;
         }
         return EnvelopeSample();
@@ -402,6 +405,7 @@ public:
         if (installedChans < 0)
             return false;
 
+        std::vector<double> maxEnvValues;
         //query parameter server
         yarp::os::Bottle query, reply;
         query.addString("getParam");
@@ -437,7 +441,11 @@ public:
                     for (int bt = 1; bt < names->size(); ++bt)
                     {
                         emgChannelNames.push_back(names->get(bt).asList()->get(0).asString());
-                        enabledChannels.push_back(names->get(bt).asList()->get(1).asInt()); //TODO check it is consistent with max num emg channels
+                        enabledChannels.push_back(names->get(bt).asList()->get(1).asList()->find("chan").asInt()); //TODO check it is consistent with max num emg channels
+                        if (names->get(bt).asList()->get(1).asList()->check("maxEnv"))
+                            maxEnvValues.push_back(names->get(bt).asList()->get(1).asList()->find("maxEnv").asDouble()); //TODO check it is consistent with max num emg channels
+                        else
+                            maxEnvValues.push_back(1.0); //check if this is correct
                     }
             }
         }
@@ -451,7 +459,20 @@ public:
         if (rf.check("selfNormalize"))
             cometa.setSelfNormalize(rf.find("selfNormalize").asBool());
 
-        return cometa.initialize(enabledChannels) == 0;
+        std::cout << "emgNames ";
+        for (auto it : emgChannelNames)
+            std::cout << it << " ";
+        std::cout << std::endl;
+        std::cout << "enabledChans " ;
+        for (auto it : enabledChannels)
+            std::cout << it << " ";
+        std::cout << std::endl;
+        std::cout << "maxEnvs ";
+        for (auto it : maxEnvValues)
+            std::cout << it << " ";
+        std::cout << std::endl;
+
+        return cometa.initialize(enabledChannels, maxEnvValues) == 0;
     };
 
     void defaultEmgNames(size_t nChannels)
