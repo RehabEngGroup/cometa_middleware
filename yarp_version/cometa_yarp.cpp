@@ -4,6 +4,9 @@
 
 #include <time.h>
 
+//to save data to file:
+#include <fstream>
+
 #include "WaveAPI.h" // To use the WaveAPI library
 #include <yarp/os/Network.h>
 #include <yarp/os/Time.h>
@@ -65,6 +68,9 @@ class CometaReader
     bool initialized;
     bool selfNormalize;
     bool recording;
+
+    //to save raw data to file
+    std::ofstream outRaw;
 
 public:
     //only works if called before initialize
@@ -136,6 +142,13 @@ public:
             return -1;
         }
 
+        outRaw << "Time\t";
+        for (int i = 0; i < emgInstalledChanNum; ++i)
+        {
+            if (emgChanEnableVect[i]==1)
+                outRaw << "Chan_" << i << "\t";
+        }
+        outRaw << std::endl;
 
         //disable all the FootSw channels (1= enabled, 0= disabled) 
         for (i = 0; i < fswInstalledChanNum; i++)
@@ -243,6 +256,24 @@ public:
                 device = NULL;
             }
         }
+
+        //to write raw data to file
+        time_t tt;
+        time(&tt);
+        struct tm * timeinfo;
+        char buffer[80];
+        timeinfo = localtime(&tt);
+        char filename[1000];
+        size_t l = strftime(filename,
+            sizeof(filename),
+            "rawEmg_%Y-%m-%dT%Hh%Mm%S.txt",
+            timeinfo);
+
+
+        outRaw.open(filename);
+        if (!outRaw.is_open())
+            yWarning("Could not open output File " + std::string(filename));
+
     };
 
 
@@ -256,6 +287,8 @@ public:
 
         // step 8: destroy the device
         DeleteWaveDevice();
+
+        outRaw.close();
     };
 
     bool reset()
@@ -325,8 +358,11 @@ public:
             size_t curChan = 0;
             while (offset <= lastSample - emgEnabledChanNum )
             {
+                outRaw << (double)sampleCounter / double(COMETA_SAMPLING_RATE) << "\t";
                 for (curChan = 0; curChan < emgEnabledChanNum; curChan++)
                 {
+                    outRaw << dataBuff[offset + curChan] << "\t";
+
                     double sampleValue = filtersLE.at(curChan).filter(abs(filters.at(curChan).filter(dataBuff[offset + curChan])));
                     if (selfNormalize && sampleValue>maxEnvs.at(curChan))
                         maxEnvs.at(curChan) = sampleValue;
@@ -334,6 +370,8 @@ public:
                 }
                 offset += emgEnabledChanNum;
                 sampleCounter++;
+
+                outRaw << std::endl;
             }
             EnvelopeSample normalizedReorderedSample(emgEnabledChanNum);
             normalizedReorderedSample.time = (double)sampleCounter / double(COMETA_SAMPLING_RATE);
