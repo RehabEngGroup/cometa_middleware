@@ -58,9 +58,9 @@ class CometaReader
     unsigned int emgEnabledChanNum;
     std::vector<int> channelsMap;
     // Bandpass filter for raw EMG signal
-    std::vector<VOSL::Filter::Filter<double> > filters;
+    std::vector<vosl::Filter::Filter<double> > filters;
     // Lowpass filter for rectified EMG signal
-    std::vector<VOSL::Filter::Filter<double> > filtersLE;
+    std::vector<vosl::Filter::Filter<double> > filtersLE;
     // Maximum value (so far) for envelopes, used for normalization
     std::vector<double> maxEnvs;
     size_t sampleCounter;
@@ -183,21 +183,21 @@ public:
         aCoeffHP.push_back(0.9150);
 
 
-        VOSL::Filter::Polynomial<double> bHP(bCoeffHP);
-        VOSL::Filter::Polynomial<double> aHP(aCoeffHP);
+        vosl::Filter::Polynomial<double> bHP(bCoeffHP);
+        vosl::Filter::Polynomial<double> aHP(aCoeffHP);
 
 
-        VOSL::Filter::TransferFunction<double> emgFilterTF =
-            VOSL::Filter::butter<double>(2, 300, 2000) * VOSL::Filter::TransferFunction<double>(bHP, aHP, 2000);
+        vosl::Filter::TransferFunction<double> emgFilterTF =
+            vosl::Filter::butter<double>(2, 300, 2000) * vosl::Filter::TransferFunction<double>(bHP, aHP, 2000);
 
         for (int i = 0; i < emgEnabledChanNum; ++i)
         {
-            filters.push_back(VOSL::Filter::Filter<double>(emgFilterTF));
+            filters.push_back(vosl::Filter::Filter<double>(emgFilterTF));
         }
 
         for (int i = 0; i < emgEnabledChanNum; ++i)
         {
-            filtersLE.push_back(VOSL::Filter::Filter<double>(VOSL::Filter::butter<double>(2, 8, 2000)));
+            filtersLE.push_back(vosl::Filter::Filter<double>(vosl::Filter::butter<double>(2, 8, 2000)));
         }
 
         // step 3c: initialize maximum envelope values
