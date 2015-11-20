@@ -239,7 +239,7 @@ public:
         newEpoch = true;
         initialized = false;
         sampleCounter = 0;
-        selfNormalize = true;
+        selfNormalize = false;
         device = NULL;
         recording = true;
 
