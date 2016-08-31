@@ -227,6 +227,9 @@ public:
             return errcode;
         }
         initialized = true;
+        std::cout << "Self normalization is " << (selfNormalize ? "ON" : "OFF") << std::endl;
+        if (trgMode != DAQ_TRG_OUT_ENABLE)
+            std::cout << "Waiting for trigger input" << std::endl;
         return 0;
     };
 
@@ -385,6 +388,7 @@ public:
                 }
                 outRaw << std::endl;
             }
+            std::cout << "."; std::flush(std::cout);
             return normalizedReorderedSampleVector;
         }
         return std::vector<EnvelopeSample>();
@@ -454,7 +458,6 @@ public:
                     }
             }
         }
-
         if (rf.check("trigIn"))
         if (!cometa.setTriggerIn(true))
         {
