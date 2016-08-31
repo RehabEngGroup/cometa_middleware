@@ -144,11 +144,11 @@ public:
             return -1;
         }
 
-        outRaw << "Time\t";
+        outRaw << "Time";
         for (int i = 0; i < emgInstalledChanNum; ++i)
         {
             if (emgChanEnableVect[i]==1)
-                outRaw << "Chan_" << i << "\t";
+                outRaw << "\tChan_" << i;
         }
         outRaw << std::endl;
 
@@ -366,10 +366,10 @@ public:
             std::vector<EnvelopeSample> normalizedReorderedSampleVector;
             while (offset <= lastSample - emgEnabledChanNum )
             {
-                outRaw << (double)sampleCounter / double(COMETA_SAMPLING_RATE) << "\t";
+                outRaw << (double)sampleCounter / double(COMETA_SAMPLING_RATE);
                 for (curChan = 0; curChan < emgEnabledChanNum; curChan++)
                 {
-                    outRaw << dataBuff[offset + curChan] << "\t";
+                    outRaw << "\t" << dataBuff[offset + curChan];
 
                     double sampleValue = filtersLE.at(curChan).filter(abs(filters.at(curChan).filter(dataBuff[offset + curChan])));
                     if (selfNormalize && sampleValue>maxEnvs.at(curChan))
@@ -387,6 +387,7 @@ public:
                     normalizedReorderedSampleVector.push_back(normalizedReorderedSample);
                 }
                 outRaw << std::endl;
+                std::flush(outRaw);
             }
             std::cout << "."; std::flush(std::cout);
             return normalizedReorderedSampleVector;
