@@ -6,10 +6,6 @@ include_directories(${WaveAPI_INCLUDE_DIR} ${YARP_INCLUDE_DIRS})
 
 add_subdirectory(rosmsgs)
 
-# this is needed by the Filter library (TODO: export somehow in FilterConfig.cmake!!
-add_definitions(/D_USE_MATH_DEFINES)
-
 include_directories(gen_msgs/include)
-include_directories(${Filter_INCLUDE_DIRS})
 add_executable(cometa_emg_yarp cometa_yarp.cpp)
-target_link_libraries(cometa_emg_yarp ${WaveAPI_LIBRARY} ${YARP_LIBRARIES})
+target_link_libraries(cometa_emg_yarp rtb::Filter ${WaveAPI_LIBRARY} ${YARP_LIBRARIES})

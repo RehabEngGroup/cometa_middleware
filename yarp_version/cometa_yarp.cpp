@@ -17,8 +17,8 @@
 #include "ceinms_msgs/EmgData.h"
 #include "ceinms_msgs/ResetTimer.h"
 #include "ceinms_msgs/ResetTimerReply.h"
-#include <vosl/Filter/Filter.h>
-#include <vosl/Filter/Designer.h>
+#include <rtb/Filter/Filter.h>
+#include <rtb/Filter/Designer.h>
 
 
 const unsigned int COMETA_SAMPLING_RATE = 2000;
@@ -58,9 +58,9 @@ class CometaReader
     unsigned int emgEnabledChanNum;
     std::vector<int> channelsMap;
     // Bandpass filter for raw EMG signal
-    std::vector<vosl::Filter::Filter<double> > filters;
+    std::vector<rtb::Filter::Filter<double> > filters;
     // Lowpass filter for rectified EMG signal
-    std::vector<vosl::Filter::Filter<double> > filtersLE;
+    std::vector<rtb::Filter::Filter<double> > filtersLE;
     // Maximum value (so far) for envelopes, used for normalization
     std::vector<double> maxEnvs;
     size_t sampleCounter;
@@ -183,21 +183,21 @@ public:
         aCoeffHP.push_back(0.9150);
 
 
-        vosl::Filter::Polynomial<double> bHP(bCoeffHP);
-        vosl::Filter::Polynomial<double> aHP(aCoeffHP);
+        rtb::Filter::Polynomial<double> bHP(bCoeffHP);
+        rtb::Filter::Polynomial<double> aHP(aCoeffHP);
 
 
-        vosl::Filter::TransferFunction<double> emgFilterTF =
-            vosl::Filter::butter<double>(2, 300, 2000) * vosl::Filter::TransferFunction<double>(bHP, aHP, 2000);
+        rtb::Filter::TransferFunction<double> emgFilterTF =
+            rtb::Filter::butter<double>(2, 300, 2000) * rtb::Filter::TransferFunction<double>(bHP, aHP, 2000);
 
         for (int i = 0; i < emgEnabledChanNum; ++i)
         {
-            filters.push_back(vosl::Filter::Filter<double>(emgFilterTF));
+            filters.push_back(rtb::Filter::Filter<double>(emgFilterTF));
         }
 
         for (int i = 0; i < emgEnabledChanNum; ++i)
         {
-            filtersLE.push_back(vosl::Filter::Filter<double>(vosl::Filter::butter<double>(2, 8, 2000)));
+            filtersLE.push_back(rtb::Filter::Filter<double>(rtb::Filter::butter<double>(2, 8, 2000)));
         }
 
         // step 3c: initialize maximum envelope values
