@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<?xml-stylesheet type="text/xsl" href="yarpmanifest.xsl"?>
+<module>
+    <name>cometa_emg_yarp</name>
+    <description>EMG data reader from Cometa EMG Wave Wireless system</description>
+    <copypolicy>Released under the terms of the Apache License v2.0</copypolicy>
+    <version>1.0</version>
+
+    <arguments>
+        <param desc="Flag to enable trigger input"> trigIn </param>
+        <param default= "false" desc="Boolean parameter; if true, data (envelopes) are normalized to the maximum value acquired so far"> selfNormalize </param>
+    </arguments>
+
+    <authors>
+        <author email="elena.ceseracciu@gmail.com"> Elena Ceseracciu </author>
+        <author email="tagliapietra.work@gmail.com"> Luca Tagliapietra </author>
+        <author email="monica.reggiani@gmail.com"> Monica Reggiani </author>
+    </authors>
+
+     <data>
+        <output>
+            <type>ceinms_msgs/EmgData</type>
+            <port carrier="tcp">/portname</port>
+            <description>EMG envelopes</description>
+        </output>
+    </data>
+
+    <services>
+        <server>
+            <type>IRpcServer</type>
+            <idl>ceinms_msgs/ResetTimer.srv</idl>
+            <port>/resetCeinms@/cometaReader</port>
+            <description>Reset the timestamp of output message</description>
+        </server>
+    </services>
+
+    <dependencies>
+        <computer>
+        </computer>
+    </dependencies>
+
+    <development>
+        <header></header>
+        <library></library>
+    </development>
+
+</module>
+
